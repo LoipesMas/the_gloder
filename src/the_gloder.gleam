@@ -5,6 +5,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import lustre
+import lustre/attribute
 import lustre/element
 import lustre/element/html
 import lustre/event
@@ -47,7 +48,7 @@ fn generate(input: glance.Module) {
   list.map(custom_type.definition.variants, fn(variant) {
     let signature = generate_function_signature(variant)
     mat.format2(
-      "{} {\n\t{}\n}",
+      "{} {\n\t{}\n\t|> json.decode(from: json_string, using: _)\n}",
       signature,
       generate_decoder(variant),
     )
@@ -77,15 +78,31 @@ fn generate_decoder(variant: glance.Variant) -> String {
 
 fn type_to_dynamic(type_: glance.Type) -> String {
   case type_ {
-    glance.NamedType(name, ..) ->
+    glance.NamedType(name, parameters: parameters, ..) ->
       case name {
-        "String" -> "decode.string"
-        "Int" -> "decode.int"
+        "String" -> "dynamic.string"
+        "Int" -> "dynamic.int"
+        "Bool" -> "dynamic.bool"
+        "Float" -> "dynamic.float"
+        "List" ->
+          mat.format1(
+            "dynamic.list({})",
+            list.first(parameters)
+              |> result.map(type_to_dynamic)
+              |> result.unwrap("???"),
+          )
+        "Option" ->
+          mat.format1(
+            "dynamic.optional({})",
+            list.first(parameters)
+              |> result.map(type_to_dynamic)
+              |> result.unwrap("???"),
+          )
         n -> string.lowercase(n) <> "_from_json"
       }
     glance.TupleType(types) ->
       mat.format2(
-        "decode.decode{}({})",
+        "dynamic.decode{}({})",
         list.length(types),
         list.map(types, type_to_dynamic) |> string.join(","),
       )
@@ -94,28 +111,60 @@ fn type_to_dynamic(type_: glance.Type) -> String {
 }
 
 fn generate_field_decode(field: glance.Field(glance.Type)) -> String {
-  mat.format2(
-    "decode.field(\"{}\",{})",
-    field.label |> option.unwrap("<UNKNOWN>"),
-    type_to_dynamic(field.item),
+  let #(field_function, type_decoder) = case field.item {
+    glance.NamedType("Option", parameters: parameters, ..) -> #(
+      "dynamic.optional_field",
+      list.first(parameters)
+        |> result.map(type_to_dynamic)
+        |> result.unwrap("!OPTION NEEDS A TYPE!"),
+    )
+    _ -> #("dynamic.field", type_to_dynamic(field.item))
+  }
+  mat.format3(
+    "{}(\"{}\", {})",
+    field_function,
+    field.label |> option.unwrap("<UNKNOWN>") |> string.replace("_", "-"),
+    type_decoder,
   )
 }
 
 fn view(model: Model) -> element.Element(Msg) {
-  html.div([scl([s.margin_("2rem")])], [
-    html.textarea(
-      [event.on_input(ChangeText), scl([s.width_("30vw"), s.height_("30vh")])],
-      model,
-    ),
-    html.textarea(
-      [scl([s.width_("60vw"), s.height_("30vh")])],
-      parse(model)
-        |> result.map(generate)
-        |> result.map(result.unwrap(_, or: ""))
-        |> result.map_error(string.inspect)
-        |> result.unwrap_both,
-    ),
-  ])
+  html.div(
+    [scl([s.width_("100vw"), s.height_("100vh"), s.background("#222222")])],
+    [
+      html.textarea(
+        [
+          event.on_input(ChangeText),
+          scl([
+            s.width_("30vw"),
+            s.height_("30vh"),
+            s.property("tab-size", "4"),
+            s.background("#222222"),
+            s.color("#eee"),
+          ]),
+          attribute.attribute("spellcheck", "false"),
+        ],
+        model,
+      ),
+      html.textarea(
+        [
+          scl([
+            s.width_("60vw"),
+            s.height_("30vh"),
+            s.property("tab-size", "4"),
+            s.background("#222"),
+            s.color("#eee"),
+          ]),
+          attribute.disabled(True),
+        ],
+        parse(model)
+          |> result.map(generate)
+          |> result.map(result.unwrap(_, or: ""))
+          |> result.map_error(string.inspect)
+          |> result.unwrap_both,
+      ),
+    ],
+  )
 }
 
 pub fn main() {
