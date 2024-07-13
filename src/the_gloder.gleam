@@ -10,6 +10,7 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import mat
+import plinth/browser/clipboard
 import sketch as s
 import sketch/lustre as sketch_lustre
 import sketch/options as sketch_options
@@ -32,13 +33,27 @@ fn init(_flags) {
 
 pub type Msg {
   ChangeText(String)
+  UserClickedCopy
 }
 
 fn update(model: Model, msg: Msg) -> Model {
+  let output =
+    parse(model)
+    |> result.map_error(ParseError)
+    |> result.try(generate)
+    |> result.map(string.replace(_,"\t","  "))
+    |> result.map_error(string.inspect)
+    |> result.unwrap_both
   case msg {
     ChangeText(value) -> value
+    UserClickedCopy -> {
+      clipboard.write_text(output)
+      model
+    }
   }
 }
+
+
 
 fn add_template(input) {
   "type Data {" <> input <> "}"
@@ -149,7 +164,7 @@ fn generate_field_decode(
 
 fn textarea_styles() {
   [
-    s.property("tab-size", "4"),
+    s.property("tab-size", "2"),
     s.background("#111111"),
     s.border("none"),
     s.property("resize", "none"),
@@ -200,6 +215,12 @@ fn text_holder_class() {
 }
 
 fn view(model: Model) -> element.Element(Msg) {
+  let output =
+    parse(model)
+    |> result.map_error(ParseError)
+    |> result.try(generate)
+    |> result.map_error(string.inspect)
+    |> result.unwrap_both
   html.div(
     [
       scl([
@@ -260,14 +281,21 @@ fn view(model: Model) -> element.Element(Msg) {
             ),
           ],
         ),
-        html.textarea(
-          [output_class(), attribute.disabled(True)],
-          parse(model)
-            |> result.map_error(ParseError)
-            |> result.try(generate)
-            |> result.map_error(string.inspect)
-            |> result.unwrap_both,
-        ),
+        html.div([scl([s.flex_grow("2"),s.display("flex"), s.flex_direction("column")])], [
+          html.textarea([output_class(), attribute.disabled(True)], output),
+          html.button([event.on_click(UserClickedCopy), scl([s.position("absolute"),
+          s.bottom_("5vh"),
+          s.right_("10vw"),
+          s.font_size_("1.2rem"),
+          s.padding_("0.6rem 0.8rem"),
+          s.border_radius_("0"),
+          s.border("none"),
+          s.font_weight("600"),
+          s.background("#bbb"),
+          s.color("#111"),
+          s.hover([s.cursor("pointer"), s.background("#eee")])
+          ])],[html.text("📋 Copy")]),
+        ]),
       ]),
     ],
   )
