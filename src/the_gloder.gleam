@@ -147,41 +147,128 @@ fn generate_field_decode(
   })
 }
 
+fn textarea_styles() {
+  [
+    s.property("tab-size", "4"),
+    s.background("#111111"),
+    s.border("none"),
+    s.property("resize", "none"),
+    s.padding_("10px"),
+    s.margin_("0"),
+  ]
+}
+
+fn input_class() {
+  textarea_styles()
+  |> list.append([
+    s.color("whitesmoke"),
+    s.background("#151515"),
+    s.focus_visible([s.outline("none"), s.background("#171717")]),
+    s.flex_grow("1"),
+  ])
+  |> scl
+}
+
+fn template_class() {
+  textarea_styles()
+  |> list.append([
+    s.color("rgb(151, 151, 151)"),
+    s.background("#151515"),
+    s.focus_visible([s.outline("none"), s.background("#171717")]),
+    s.flex_grow("0"),
+    s.property("flex-shrink", "1"),
+  ])
+  |> scl
+}
+
+fn output_class() {
+  textarea_styles()
+  |> list.append([s.color("#77ff99"), s.flex_grow("2")])
+  |> scl
+}
+
+fn text_holder_class() {
+  [
+    s.width_("90%"),
+    s.height_("100%"),
+    s.background("#000"),
+    s.margin_("auto"),
+    s.display("flex"),
+    s.flex_direction("row"),
+  ]
+  |> scl
+}
+
 fn view(model: Model) -> element.Element(Msg) {
   html.div(
-    [scl([s.width_("100vw"), s.height_("100vh"), s.background("#222222")])],
     [
-      html.textarea(
-        [
-          event.on_input(ChangeText),
-          scl([
-            s.width_("30vw"),
-            s.height_("30vh"),
-            s.property("tab-size", "4"),
-            s.background("#222222"),
-            s.color("#eee"),
-          ]),
-          attribute.attribute("spellcheck", "false"),
-        ],
-        model,
-      ),
-      html.textarea(
+      scl([
+        s.display("flex"),
+        s.flex_direction("column"),
+        s.height_("100%"),
+        s.font_family("monospace"),
+      ]),
+    ],
+    [
+      html.h1(
         [
           scl([
-            s.width_("60vw"),
-            s.height_("30vh"),
-            s.property("tab-size", "4"),
-            s.background("#222"),
-            s.color("#eee"),
+            s.text_align("center"),
+            s.font_size_("2rem"),
+            s.color("#44ff66"),
+            s.margin_("0.5rem 0"),
           ]),
-          attribute.disabled(True),
         ],
-        parse(model)
-          |> result.map_error(ParseError)
-          |> result.try(generate)
-          |> result.map_error(string.inspect)
-          |> result.unwrap_both,
+        [html.text("🤖 The Gloder")],
       ),
+      html.div([text_holder_class()], [
+        html.div(
+          [
+            scl([
+              s.flex_grow("1"),
+              s.display("flex"),
+              s.flex_direction("column"),
+              s.gap_("0"),
+            ]),
+          ],
+          [
+            html.textarea(
+              [
+                attribute.attribute("spellcheck", "false"),
+                template_class(),
+                attribute.disabled(True),
+                attribute.rows(1),
+              ],
+              "type YourData {",
+            ),
+            html.textarea(
+              [
+                event.on_input(ChangeText),
+                input_class(),
+                attribute.attribute("spellcheck", "false"),
+              ],
+              model,
+            ),
+            html.textarea(
+              [
+                attribute.attribute("spellcheck", "false"),
+                template_class(),
+                attribute.disabled(True),
+                attribute.rows(1),
+              ],
+              "}",
+            ),
+          ],
+        ),
+        html.textarea(
+          [output_class(), attribute.disabled(True)],
+          parse(model)
+            |> result.map_error(ParseError)
+            |> result.try(generate)
+            |> result.map_error(string.inspect)
+            |> result.unwrap_both,
+        ),
+      ]),
     ],
   )
 }
