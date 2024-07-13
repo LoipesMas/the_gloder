@@ -162,8 +162,8 @@ fn input_class() {
   textarea_styles()
   |> list.append([
     s.color("whitesmoke"),
-    s.background("#151515"),
-    s.focus_visible([s.outline("none"), s.background("#171717")]),
+    s.background("#202020"),
+    s.focus_visible([s.outline("none"), s.background("#222222")]),
     s.flex_grow("1"),
   ])
   |> scl
