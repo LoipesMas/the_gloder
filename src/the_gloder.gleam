@@ -14,6 +14,11 @@ import sketch as s
 import sketch/lustre as sketch_lustre
 import sketch/options as sketch_options
 
+type GloderError {
+  GenerateError(String)
+  ParseError(glance.Error)
+}
+
 pub type Model =
   String
 
@@ -43,18 +48,21 @@ fn parse(input: String) -> Result(glance.Module, glance.Error) {
   glance.module(add_template(input))
 }
 
-fn generate(input: glance.Module) {
-  use custom_type <- result.try(list.first(input.custom_types))
-  list.map(custom_type.definition.variants, fn(variant) {
+fn generate(input: glance.Module) -> Result(String, GloderError) {
+  use custom_type <- result.try(
+    list.first(input.custom_types)
+    |> result.replace_error(GenerateError("No custom types?")),
+  )
+  list.try_map(custom_type.definition.variants, fn(variant) {
+    use decoder <- result.map(generate_decoder(variant))
     let signature = generate_function_signature(variant)
     mat.format2(
       "{} {\n\t{}\n\t|> json.decode(from: json_string, using: _)\n}",
       signature,
-      generate_decoder(variant),
+      decoder,
     )
   })
-  |> string.join("\n\n")
-  |> Ok
+  |> result.map(string.join(_, "\n\n"))
 }
 
 fn generate_function_signature(variant: glance.Variant) -> String {
@@ -65,9 +73,12 @@ fn generate_function_signature(variant: glance.Variant) -> String {
   )
 }
 
-fn generate_decoder(variant: glance.Variant) -> String {
+fn generate_decoder(variant: glance.Variant) -> Result(String, GloderError) {
   let field_count = list.length(variant.fields)
-  let field_decoders = list.map(variant.fields, generate_field_decode)
+  use field_decoders <- result.map(list.try_map(
+    variant.fields,
+    generate_field_decode,
+  ))
   mat.format3(
     "dynamic.decode{}(\n\t\t{},\n\t\t{}\n\t)",
     field_count,
@@ -76,56 +87,64 @@ fn generate_decoder(variant: glance.Variant) -> String {
   )
 }
 
-fn type_to_dynamic(type_: glance.Type) -> String {
+fn type_to_dynamic(type_: glance.Type) -> Result(String, GloderError) {
   case type_ {
     glance.NamedType(name, parameters: parameters, ..) ->
       case name {
-        "String" -> "dynamic.string"
-        "Int" -> "dynamic.int"
-        "Bool" -> "dynamic.bool"
-        "Float" -> "dynamic.float"
+        "String" -> Ok("dynamic.string")
+        "Int" -> Ok("dynamic.int")
+        "Bool" -> Ok("dynamic.bool")
+        "Float" -> Ok("dynamic.float")
         "List" ->
-          mat.format1(
-            "dynamic.list({})",
-            list.first(parameters)
-              |> result.map(type_to_dynamic)
-              |> result.unwrap("???"),
-          )
+          list.first(parameters)
+          |> result.replace_error(GenerateError("List requires a subtype"))
+          |> result.try(type_to_dynamic)
+          |> result.map(fn(type_) { mat.format1("dynamic.list({})", type_) })
         "Option" ->
-          mat.format1(
-            "dynamic.optional({})",
-            list.first(parameters)
-              |> result.map(type_to_dynamic)
-              |> result.unwrap("???"),
-          )
-        n -> string.lowercase(n) <> "_from_json"
+          list.first(parameters)
+          |> result.replace_error(GenerateError("Option requires a subtype"))
+          |> result.try(type_to_dynamic)
+          |> result.map(fn(type_) { mat.format1("dynamic.optional({})", type_) })
+        n -> Ok(string.lowercase(n) <> "_from_json")
       }
     glance.TupleType(types) ->
-      mat.format2(
-        "dynamic.decode{}({})",
-        list.length(types),
-        list.map(types, type_to_dynamic) |> string.join(","),
-      )
-    type_ -> todo as string.inspect(type_)
+      case list.try_map(types, type_to_dynamic) {
+        Error(e) -> Error(e)
+        Ok(types) ->
+          Ok(mat.format2(
+            "dynamic.decode{}({})",
+            list.length(types),
+            types |> string.join(", "),
+          ))
+      }
+    glance.VariableType(..) ->
+      Error(GenerateError("Variable types are not supported"))
+    glance.FunctionType(..) ->
+      Error(GenerateError("Function types are not supported"))
+    glance.HoleType(..) -> Error(GenerateError("Hole types are not supported"))
   }
 }
 
-fn generate_field_decode(field: glance.Field(glance.Type)) -> String {
-  let #(field_function, type_decoder) = case field.item {
-    glance.NamedType("Option", parameters: parameters, ..) -> #(
-      "dynamic.optional_field",
+fn generate_field_decode(
+  field: glance.Field(glance.Type),
+) -> Result(String, GloderError) {
+  let res = case field.item {
+    glance.NamedType("Option", parameters: parameters, ..) ->
       list.first(parameters)
-        |> result.map(type_to_dynamic)
-        |> result.unwrap("!OPTION NEEDS A TYPE!"),
-    )
-    _ -> #("dynamic.field", type_to_dynamic(field.item))
+      |> result.replace_error(GenerateError("Option requires a subtype"))
+      |> result.try(type_to_dynamic)
+      |> result.map(fn(type_) { #("dynamic.optional_field", type_) })
+    _ ->
+      type_to_dynamic(field.item)
+      |> result.map(fn(type_) { #("dynamic.field", type_) })
   }
-  mat.format3(
-    "{}(\"{}\", {})",
-    field_function,
-    field.label |> option.unwrap("<UNKNOWN>") |> string.replace("_", "-"),
-    type_decoder,
-  )
+  use #(field_function, type_decoder) <- result.try(res)
+  field.label
+  |> option.to_result(GenerateError("Field needs a label"))
+  |> result.map(string.replace(_, "_", "-"))
+  |> result.map(fn(label) {
+    mat.format3("{}(\"{}\", {})", field_function, label, type_decoder)
+  })
 }
 
 fn view(model: Model) -> element.Element(Msg) {
@@ -158,8 +177,8 @@ fn view(model: Model) -> element.Element(Msg) {
           attribute.disabled(True),
         ],
         parse(model)
-          |> result.map(generate)
-          |> result.map(result.unwrap(_, or: ""))
+          |> result.map_error(ParseError)
+          |> result.try(generate)
           |> result.map_error(string.inspect)
           |> result.unwrap_both,
       ),
