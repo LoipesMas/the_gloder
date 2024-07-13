@@ -1,25 +1,23 @@
-# the_gloder
+# 🤖 The Gloder
 
-[![Package Version](https://img.shields.io/hexpm/v/the_gloder)](https://hex.pm/packages/the_gloder)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/the_gloder/)
+Writing a decoder for your Gleam types can be a chore.
 
-```sh
-gleam add the_gloder
-```
-```gleam
-import the_gloder
+Why not let the machine do it for you?
 
-pub fn main() {
-  // TODO: An example of the project in use
-}
-```
+Try it out: <https://loipesmas.github.io/the_gloder/>
 
-Further documentation can be found at <https://hexdocs.pm/the_gloder>.
+(The Gloder is still in the alpha stage.)
 
-## Development
+---
 
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-gleam shell # Run an Erlang shell
-```
+The Gloder will convert your type definitions into a function that decodes a JSON string into that struct.
+It handles all the basic types, optional fields, tuples and lists.
+
+## Planned features
+
+- [ ] selecting decoder input (JSON, `Dynamic`, etc.)
+- [ ] selecting casing (kebab-case, snake_case, camelCase)
+- [ ] generating encoders
+- [ ] decoding enums/atoms
+- [ ] decoding more than 9 fields
+- [ ] *somehow* running in the editor
