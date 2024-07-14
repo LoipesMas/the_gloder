@@ -21,6 +21,7 @@ glance = ">= 0.11.0 and < 1.0.0"
 sketch = ">= 2.3.0 and < 3.0.0"
 mat = ">= 1.0.0 and < 2.0.0"
 plinth = ">= 0.4.8 and < 1.0.0"
+blask = {path = "../blask"}
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

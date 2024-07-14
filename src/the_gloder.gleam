@@ -1,3 +1,4 @@
+import blask/unstyled/select.{select}
 import glance
 import gleam/list
 import gleam/option
@@ -19,36 +20,46 @@ type GloderError {
   ParseError(glance.Error)
 }
 
-pub type Model =
-  String
+pub type Model {
+  Model(input: String, casing_select_open: Bool, selected_casing: String)
+}
 
 fn scl(styles) {
   styles |> s.class |> s.to_lustre
 }
 
-fn init(_flags) {
-  "User(name: String, age: Int)"
+fn init(_flags) -> Model {
+  Model(
+    input: "User(name: String, age: Int)",
+    casing_select_open: False,
+    selected_casing: "kebab-case",
+  )
 }
 
 pub type Msg {
   ChangeText(String)
   UserClickedCopy
+  ChangeCasingSelectOpen(Bool)
+  CasingSelected(String)
 }
 
 fn update(model: Model, msg: Msg) -> Model {
   let output =
-    parse(model)
+    parse(model.input)
     |> result.map_error(ParseError)
     |> result.try(generate)
     |> result.map(string.replace(_, "\t", "  "))
     |> result.map_error(string.inspect)
     |> result.unwrap_both
   case msg {
-    ChangeText(value) -> value
+    ChangeText(value) -> Model(..model, input: value)
     UserClickedCopy -> {
       clipboard.write_text(output)
       model
     }
+    ChangeCasingSelectOpen(value) -> Model(..model, casing_select_open: value)
+    CasingSelected(value) ->
+      Model(..model, casing_select_open: False, selected_casing: value)
   }
 }
 
@@ -211,9 +222,47 @@ fn text_holder_class() {
   |> scl
 }
 
+fn select_button_main_class() {
+  [
+    s.font_size_("1rem"),
+    s.padding_("0.6rem 0.8rem"),
+    s.border_radius_("0"),
+    s.border("none"),
+    s.border_bottom("3px solid #485"),
+    s.font_weight("600"),
+    s.background("#bbb"),
+    s.color("#111"),
+    s.hover([
+      s.cursor("pointer"),
+      s.background("#eee"),
+      s.border_bottom("3px solid #8f9"),
+    ]),
+  ]
+  |> scl
+}
+
+fn select_button_list_class() {
+  [
+    s.font_size_("1rem"),
+    s.padding_("0.6rem 0.8rem"),
+    s.border_radius_("0"),
+    s.border("none"),
+    s.border_bottom("3px solid #222"),
+    s.font_weight("600"),
+    s.background("#bbb"),
+    s.color("#111"),
+    s.hover([
+      s.cursor("pointer"),
+      s.background("#eee"),
+      s.border_bottom("3px solid #8f9"),
+    ]),
+  ]
+  |> scl
+}
+
 fn view(model: Model) -> element.Element(Msg) {
   let output =
-    parse(model)
+    parse(model.input)
     |> result.map_error(ParseError)
     |> result.try(generate)
     |> result.map_error(string.inspect)
@@ -238,6 +287,32 @@ fn view(model: Model) -> element.Element(Msg) {
           ]),
         ],
         [html.text("🤖 The Gloder")],
+      ),
+      html.div(
+        [
+          scl([
+            s.width_("90%"),
+            s.margin_("0.5rem auto"),
+            s.display("flex"),
+            s.flex_direction("row"),
+          ]),
+        ],
+        [
+          html.div(
+            [scl([s.margin_("auto 1.0rem auto 0"), s.color("whitesmoke")])],
+            [html.text("Settings:")],
+          ),
+          select(
+            open: model.casing_select_open,
+            current: model.selected_casing,
+            options: ["kebab-case", "snake_case", "camelCase"],
+            on_toggle: ChangeCasingSelectOpen,
+            on_select: CasingSelected,
+            main_button_attrs: [select_button_main_class()],
+            list_button_attrs: [select_button_list_class()],
+            list_attrs: [],
+          ),
+        ],
       ),
       html.div([text_holder_class()], [
         html.div(
@@ -265,7 +340,7 @@ fn view(model: Model) -> element.Element(Msg) {
                 input_class(),
                 attribute.attribute("spellcheck", "false"),
               ],
-              model,
+              model.input,
             ),
             html.textarea(
               [
