@@ -21,12 +21,28 @@ type GloderError {
   ParseError(glance.Error)
 }
 
-type Settings {
-  Settings(case_: String)
+type Case {
+  KebabCase
+  SnakeCase
+  CamelCase
+  PascalCase
 }
 
-pub type Model {
-  Model(input: String, casing_select_open: Bool, selected_casing: String)
+fn case_to_str(case_: Case) {
+  case case_ {
+    KebabCase -> "kebab-case"
+    SnakeCase -> "snake_case"
+    CamelCase -> "camelCase"
+    PascalCase -> "PascalCase"
+  }
+}
+
+type Settings {
+  Settings(case_: Case)
+}
+
+type Model {
+  Model(input: String, casing_select_open: Bool, selected_case: Case)
 }
 
 fn scl(styles) {
@@ -37,19 +53,19 @@ fn init(_flags) -> Model {
   Model(
     input: "User(name: String, age: Int)",
     casing_select_open: False,
-    selected_casing: "kebab-case",
+    selected_case: KebabCase,
   )
 }
 
-pub type Msg {
+type Msg {
   ChangeText(String)
   UserClickedCopy
   ChangeCasingSelectOpen(Bool)
-  CasingSelected(String)
+  CasingSelected(Case)
 }
 
 fn update(model: Model, msg: Msg) -> Model {
-  let settings = Settings(case_: model.selected_casing)
+  let settings = Settings(case_: model.selected_case)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
@@ -65,7 +81,7 @@ fn update(model: Model, msg: Msg) -> Model {
     }
     ChangeCasingSelectOpen(value) -> Model(..model, casing_select_open: value)
     CasingSelected(value) ->
-      Model(..model, casing_select_open: False, selected_casing: value)
+      Model(..model, casing_select_open: False, selected_case: value)
   }
 }
 
@@ -164,11 +180,10 @@ fn generate_field_decode(
   settings: Settings,
 ) -> Result(String, GloderError) {
   let case_converter = case settings.case_ {
-    "kebab-case" -> justin.kebab_case
-    "snake_case" -> justin.snake_case
-    "camelCase" -> justin.camel_case
-    "PascalCase" -> justin.pascal_case
-    _ -> justin.kebab_case
+    KebabCase -> justin.kebab_case
+    SnakeCase -> justin.snake_case
+    CamelCase -> justin.camel_case
+    PascalCase -> justin.pascal_case
   }
   let res = case field.item {
     glance.NamedType("Option", parameters: parameters, ..) ->
@@ -244,6 +259,7 @@ fn text_holder_class() {
 fn select_button_main_class() {
   [
     s.font_size_("1rem"),
+    s.min_width_("180px"),
     s.padding_("0.6rem 0.8rem"),
     s.border_radius_("0"),
     s.border("none"),
@@ -264,6 +280,7 @@ fn select_button_list_class() {
   [
     s.font_size_("1rem"),
     s.padding_("0.6rem 0.8rem"),
+    s.width_("100%"),
     s.border_radius_("0"),
     s.border("none"),
     s.border_bottom("3px solid #222"),
@@ -280,7 +297,7 @@ fn select_button_list_class() {
 }
 
 fn view(model: Model) -> element.Element(Msg) {
-  let settings = Settings(case_: model.selected_casing)
+  let settings = Settings(case_: model.selected_case)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
@@ -324,13 +341,21 @@ fn view(model: Model) -> element.Element(Msg) {
           ),
           select(
             open: model.casing_select_open,
-            current: model.selected_casing,
-            options: ["kebab-case", "snake_case", "camelCase", "PascalCase"],
+            current: model.selected_case,
+            options: [KebabCase, SnakeCase, CamelCase, PascalCase],
             on_toggle: ChangeCasingSelectOpen,
             on_select: CasingSelected,
-            main_button_attrs: [select_button_main_class()],
-            list_button_attrs: [select_button_list_class()],
-            list_attrs: [],
+            main_button: fn(option) {
+              html.button([select_button_main_class()], [
+                html.text(case_to_str(option)),
+              ])
+            },
+            list_button: fn(option) {
+              html.button([select_button_list_class()], [
+                html.text(case_to_str(option)),
+              ])
+            },
+            list_attrs: [scl([s.min_width_("180px")])],
           ),
         ],
       ),
