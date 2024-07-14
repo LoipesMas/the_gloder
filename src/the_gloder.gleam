@@ -4,6 +4,7 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
+import justin
 import lustre
 import lustre/attribute
 import lustre/element
@@ -18,6 +19,10 @@ import sketch/options as sketch_options
 type GloderError {
   GenerateError(String)
   ParseError(glance.Error)
+}
+
+type Settings {
+  Settings(case_: String)
 }
 
 pub type Model {
@@ -44,10 +49,11 @@ pub type Msg {
 }
 
 fn update(model: Model, msg: Msg) -> Model {
+  let settings = Settings(case_: model.selected_casing)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
-    |> result.try(generate)
+    |> result.try(generate(_, settings))
     |> result.map(string.replace(_, "\t", "  "))
     |> result.map_error(string.inspect)
     |> result.unwrap_both
@@ -71,13 +77,16 @@ fn parse(input: String) -> Result(glance.Module, glance.Error) {
   glance.module(add_template(input))
 }
 
-fn generate(input: glance.Module) -> Result(String, GloderError) {
+fn generate(
+  input: glance.Module,
+  settings: Settings,
+) -> Result(String, GloderError) {
   use custom_type <- result.try(
     list.first(input.custom_types)
     |> result.replace_error(GenerateError("No custom types?")),
   )
   list.try_map(custom_type.definition.variants, fn(variant) {
-    use decoder <- result.map(generate_decoder(variant))
+    use decoder <- result.map(generate_decoder(variant, settings))
     let signature = generate_function_signature(variant)
     mat.format2(
       "{} {\n\t{}\n\t|> json.decode(from: json_string, using: _)\n}",
@@ -96,12 +105,14 @@ fn generate_function_signature(variant: glance.Variant) -> String {
   )
 }
 
-fn generate_decoder(variant: glance.Variant) -> Result(String, GloderError) {
+fn generate_decoder(
+  variant: glance.Variant,
+  settings: Settings,
+) -> Result(String, GloderError) {
   let field_count = list.length(variant.fields)
-  use field_decoders <- result.map(list.try_map(
-    variant.fields,
-    generate_field_decode,
-  ))
+  use field_decoders <- result.map(
+    list.try_map(variant.fields, generate_field_decode(_, settings)),
+  )
   mat.format3(
     "dynamic.decode{}(\n\t\t{},\n\t\t{}\n\t)",
     field_count,
@@ -150,7 +161,15 @@ fn type_to_dynamic(type_: glance.Type) -> Result(String, GloderError) {
 
 fn generate_field_decode(
   field: glance.Field(glance.Type),
+  settings: Settings,
 ) -> Result(String, GloderError) {
+  let case_converter = case settings.case_ {
+    "kebab-case" -> justin.kebab_case
+    "snake_case" -> justin.snake_case
+    "camelCase" -> justin.camel_case
+    "PascalCase" -> justin.pascal_case
+    _ -> justin.kebab_case
+  }
   let res = case field.item {
     glance.NamedType("Option", parameters: parameters, ..) ->
       list.first(parameters)
@@ -164,7 +183,7 @@ fn generate_field_decode(
   use #(field_function, type_decoder) <- result.try(res)
   field.label
   |> option.to_result(GenerateError("Field needs a label"))
-  |> result.map(string.replace(_, "_", "-"))
+  |> result.map(case_converter)
   |> result.map(fn(label) {
     mat.format3("{}(\"{}\", {})", field_function, label, type_decoder)
   })
@@ -261,10 +280,11 @@ fn select_button_list_class() {
 }
 
 fn view(model: Model) -> element.Element(Msg) {
+  let settings = Settings(case_: model.selected_casing)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
-    |> result.try(generate)
+    |> result.try(generate(_, settings))
     |> result.map_error(string.inspect)
     |> result.unwrap_both
   html.div(
@@ -305,7 +325,7 @@ fn view(model: Model) -> element.Element(Msg) {
           select(
             open: model.casing_select_open,
             current: model.selected_casing,
-            options: ["kebab-case", "snake_case", "camelCase"],
+            options: ["kebab-case", "snake_case", "camelCase", "PascalCase"],
             on_toggle: ChangeCasingSelectOpen,
             on_select: CasingSelected,
             main_button_attrs: [select_button_main_class()],
