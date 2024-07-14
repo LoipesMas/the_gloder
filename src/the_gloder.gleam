@@ -1,5 +1,4 @@
 import glance
-import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
@@ -54,7 +53,7 @@ fn update(model: Model, msg: Msg) -> Model {
 }
 
 fn add_template(input) {
-  "type Data {" <> input <> "}"
+  "type YourData {" <> input <> "}"
 }
 
 fn parse(input: String) -> Result(glance.Module, glance.Error) {
