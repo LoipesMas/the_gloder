@@ -4,7 +4,7 @@
 packages = [
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
   { name = "birl", version = "1.7.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "5C66647D62BCB11FE327E7A6024907C4A17954EF22865FE0940B54A852446D01" },
-  { name = "blask", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "lustre", "sketch"], source = "local", path = "../blask" },
+  { name = "blask", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "lustre", "sketch"], source = "local", path = "blask" },
   { name = "conversation", version = "1.4.3", build_tools = ["gleam"], requirements = ["gleam_http", "gleam_javascript", "gleam_stdlib"], otp_app = "conversation", source = "hex", outer_checksum = "908B46F60444442785A495197D482558AD8B849C3714A38FAA1940358CC8CCCD" },
   { name = "exception", version = "2.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "exception", source = "hex", outer_checksum = "F5580D584F16A20B7FCDCABF9E9BE9A2C1F6AC4F9176FA6DD0B63E3B20D450AA" },
   { name = "filepath", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "EFB6FF65C98B2A16378ABC3EE2B14124168C0CE5201553DE652E2644DCFDB594" },
@@ -49,12 +49,12 @@ packages = [
 ]
 
 [requirements]
-blask = { path = "../blask" }
+blask = { path = "./blask" }
 glance = { version = ">= 0.11.0 and < 1.0.0" }
 gleam_json = { version = "1.0.1" }
 gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
-justin = { version = ">= 1.0.1 and < 2.0.0"}
+justin = { version = ">= 1.0.1 and < 2.0.0" }
 lustre = { version = ">= 4.3.0 and < 5.0.0" }
 lustre_dev_tools = { version = ">= 1.3.4 and < 2.0.0" }
 mat = { version = ">= 1.0.0 and < 2.0.0" }
