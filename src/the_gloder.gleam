@@ -37,12 +37,30 @@ fn case_to_str(case_: Case) {
   }
 }
 
+type Target {
+  Dynamic
+  JSON
+}
+
+fn target_to_str(target: Target) -> String {
+  case target {
+    Dynamic -> "dynamic"
+    JSON -> "JSON"
+  }
+}
+
 type Settings {
-  Settings(case_: Case)
+  Settings(case_: Case, target: Target)
 }
 
 type Model {
-  Model(input: String, casing_select_open: Bool, selected_case: Case)
+  Model(
+    input: String,
+    casing_select_open: Bool,
+    selected_case: Case,
+    target_select_open: Bool,
+    selected_target: Target,
+  )
 }
 
 fn scl(styles) {
@@ -54,6 +72,8 @@ fn init(_flags) -> Model {
     input: "User(name: String, age: Int)",
     casing_select_open: False,
     selected_case: KebabCase,
+    target_select_open: False,
+    selected_target: JSON,
   )
 }
 
@@ -62,10 +82,13 @@ type Msg {
   UserClickedCopy
   ChangeCasingSelectOpen(Bool)
   CasingSelected(Case)
+  ChangeTargetSelectOpen(Bool)
+  TargetSelected(Target)
 }
 
 fn update(model: Model, msg: Msg) -> Model {
-  let settings = Settings(case_: model.selected_case)
+  let settings =
+    Settings(case_: model.selected_case, target: model.selected_target)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
@@ -82,6 +105,9 @@ fn update(model: Model, msg: Msg) -> Model {
     ChangeCasingSelectOpen(value) -> Model(..model, casing_select_open: value)
     CasingSelected(value) ->
       Model(..model, casing_select_open: False, selected_case: value)
+    ChangeTargetSelectOpen(value) -> Model(..model, target_select_open: value)
+    TargetSelected(value) ->
+      Model(..model, target_select_open: False, selected_target: value)
   }
 }
 
@@ -103,22 +129,34 @@ fn generate(
   )
   list.try_map(custom_type.definition.variants, fn(variant) {
     use decoder <- result.map(generate_decoder(variant, settings))
-    let signature = generate_function_signature(variant)
-    mat.format2(
-      "{} {\n\t{}\n\t|> json.decode(from: json_string, using: _)\n}",
-      signature,
-      decoder,
-    )
+    let signature = generate_function_signature(variant, settings.target)
+    let suffix = case settings.target {
+      Dynamic -> "(value)"
+      JSON -> "\n\t|> json.decode(from: json_string, using: _)"
+    }
+    mat.format3("{} {\n\t{}{}\n}", signature, decoder, suffix)
   })
   |> result.map(string.join(_, "\n\n"))
 }
 
-fn generate_function_signature(variant: glance.Variant) -> String {
-  mat.format2(
-    "pub fn {}_from_json(json_string: String) -> Result({}, json.DecodeError)",
-    variant.name |> string.lowercase,
-    variant.name,
-  )
+fn generate_function_signature(
+  variant: glance.Variant,
+  target: Target,
+) -> String {
+  case target {
+    Dynamic ->
+      mat.format2(
+        "pub fn {}_from_dynamic(value: dynamic.Dynamic) -> Result({}, List(dynamic.DecodeError))",
+        variant.name |> string.lowercase,
+        variant.name,
+      )
+    JSON ->
+      mat.format2(
+        "pub fn {}_from_json(json_string: String) -> Result({}, json.DecodeError)",
+        variant.name |> string.lowercase,
+        variant.name,
+      )
+  }
 }
 
 fn generate_decoder(
@@ -259,7 +297,7 @@ fn text_holder_class() {
 fn select_button_main_class() {
   [
     s.font_size_("1rem"),
-    s.min_width_("180px"),
+    s.min_width_("220px"),
     s.padding_("0.6rem 0.8rem"),
     s.border_radius_("0"),
     s.border("none"),
@@ -297,7 +335,8 @@ fn select_button_list_class() {
 }
 
 fn view(model: Model) -> element.Element(Msg) {
-  let settings = Settings(case_: model.selected_case)
+  let settings =
+    Settings(case_: model.selected_case, target: model.selected_target)
   let output =
     parse(model.input)
     |> result.map_error(ParseError)
@@ -332,11 +371,18 @@ fn view(model: Model) -> element.Element(Msg) {
             s.margin_("0.5rem auto"),
             s.display("flex"),
             s.flex_direction("row"),
+            s.gap_("0.5rem"),
           ]),
         ],
         [
           html.div(
-            [scl([s.margin_("auto 1.0rem auto 0"), s.color("whitesmoke")])],
+            [
+              scl([
+                s.margin_("auto 1.0rem auto 0"),
+                s.color("whitesmoke"),
+                s.font_size_("1.1rem"),
+              ]),
+            ],
             [html.text("Settings:")],
           ),
           select(
@@ -347,7 +393,7 @@ fn view(model: Model) -> element.Element(Msg) {
             on_select: CasingSelected,
             main_button: fn(option) {
               html.button([select_button_main_class()], [
-                html.text(case_to_str(option)),
+                html.text("Case: " <> case_to_str(option)),
               ])
             },
             list_button: fn(option) {
@@ -355,7 +401,25 @@ fn view(model: Model) -> element.Element(Msg) {
                 html.text(case_to_str(option)),
               ])
             },
-            list_attrs: [scl([s.min_width_("180px")])],
+            list_attrs: [scl([s.min_width_("220px")])],
+          ),
+          select(
+            open: model.target_select_open,
+            current: model.selected_target,
+            options: [Dynamic, JSON],
+            on_toggle: ChangeTargetSelectOpen,
+            on_select: TargetSelected,
+            main_button: fn(option) {
+              html.button([select_button_main_class()], [
+                html.text("Target: " <> target_to_str(option)),
+              ])
+            },
+            list_button: fn(option) {
+              html.button([select_button_list_class()], [
+                html.text(target_to_str(option)),
+              ])
+            },
+            list_attrs: [scl([s.min_width_("220px")])],
           ),
         ],
       ),

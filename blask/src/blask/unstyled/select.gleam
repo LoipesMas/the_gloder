@@ -21,8 +21,7 @@ pub fn select(
     [
       html.div([event.on_click(toggle_open(!open)), scl([s.width_("100%")])], [
         main_button(current_option),
-      ]
-      ),
+      ]),
     ]
       |> list.append(case open {
         True -> [
