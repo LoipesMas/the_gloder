@@ -15,8 +15,8 @@ It handles all the basic types, optional fields, tuples and lists.
 
 ## Planned features
 
-- [ ] selecting decoder input (JSON, `Dynamic`, etc.)
-- [ ] selecting casing (kebab-case, snake_case, camelCase)
+- [x] selecting decoder input (JSON, `Dynamic`, etc.)
+- [x] selecting casing (kebab-case, snake_case, camelCase)
 - [ ] generating encoders
 - [ ] decoding enums/atoms
 - [ ] decoding more than 9 fields
