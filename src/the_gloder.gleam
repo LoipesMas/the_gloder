@@ -49,6 +49,13 @@ fn target_to_str(target: Target) -> String {
   }
 }
 
+fn target_from_suffix(target: Target) -> String {
+  case target {
+    Dynamic -> "from_dynamic"
+    JSON -> "from_json"
+  }
+}
+
 type Settings {
   Settings(case_: Case, target: Target)
 }
@@ -175,7 +182,10 @@ fn generate_decoder(
   )
 }
 
-fn type_to_dynamic(type_: glance.Type) -> Result(String, GloderError) {
+fn type_to_dynamic(
+  type_: glance.Type,
+  target: Target,
+) -> Result(String, GloderError) {
   case type_ {
     glance.NamedType(name, parameters: parameters, ..) ->
       case name {
@@ -186,17 +196,17 @@ fn type_to_dynamic(type_: glance.Type) -> Result(String, GloderError) {
         "List" ->
           list.first(parameters)
           |> result.replace_error(GenerateError("List requires a subtype"))
-          |> result.try(type_to_dynamic)
+          |> result.try(type_to_dynamic(_, target))
           |> result.map(fn(type_) { mat.format1("dynamic.list({})", type_) })
         "Option" ->
           list.first(parameters)
           |> result.replace_error(GenerateError("Option requires a subtype"))
-          |> result.try(type_to_dynamic)
+          |> result.try(type_to_dynamic(_, target))
           |> result.map(fn(type_) { mat.format1("dynamic.optional({})", type_) })
-        n -> Ok(string.lowercase(n) <> "_from_json")
+        n -> Ok(string.lowercase(n) <> "_" <> target_from_suffix(target))
       }
     glance.TupleType(types) ->
-      case list.try_map(types, type_to_dynamic) {
+      case list.try_map(types, type_to_dynamic(_, target)) {
         Error(e) -> Error(e)
         Ok(types) ->
           Ok(mat.format2(
@@ -227,10 +237,10 @@ fn generate_field_decode(
     glance.NamedType("Option", parameters: parameters, ..) ->
       list.first(parameters)
       |> result.replace_error(GenerateError("Option requires a subtype"))
-      |> result.try(type_to_dynamic)
+      |> result.try(type_to_dynamic(_, settings.target))
       |> result.map(fn(type_) { #("dynamic.optional_field", type_) })
     _ ->
-      type_to_dynamic(field.item)
+      type_to_dynamic(field.item, settings.target)
       |> result.map(fn(type_) { #("dynamic.field", type_) })
   }
   use #(field_function, type_decoder) <- result.try(res)
